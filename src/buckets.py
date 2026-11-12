@@ -177,15 +177,7 @@ def etiquetas_adelantos(p: Params) -> dict:
     }
 
 
-def nombres_hojas_vencidos(p: Params) -> tuple[str, str]:
-    """Nombres de las 2 hojas de pagos vencidos (se ajustan solos al mes y al cierre)."""
-    m1 = MESES[p.adelanto_desde.month - 1].upper()
-    m2 = MESES[p.cierre_desde.month - 1].upper()
-    return (f"VENCIDOS 1-{p.fecha_cierre.day} {m1}", f"VENCIDOS {p.cierre_desde.day} {m2} EN ADELANTE")
-
-
-def titulos_hojas_vencidos(p: Params) -> tuple[str, str]:
-    return (f"Pagos con vencimiento del {p.adelanto_desde:%d/%m/%Y} al {p.fecha_cierre:%d/%m/%Y} "
-            f"(sin importar cuándo se pagaron)",
-            f"Pagos con vencimiento desde el {p.cierre_desde:%d/%m/%Y} en adelante "
-            f"(sin importar cuándo se pagaron)")
+def encabezados_detalle_adelantos(p: Params) -> tuple[str, str]:
+    """Encabezados de las 2 últimas columnas de DETALLE ADELANTOS (se ajustan solos al mes y al cierre)."""
+    return (f"Vencidos 1-{p.fecha_cierre.day} {MESES[p.adelanto_desde.month - 1]}",
+            f"Vencidos {p.cierre_desde.day} {MESES[p.cierre_desde.month - 1]} en adelante")
