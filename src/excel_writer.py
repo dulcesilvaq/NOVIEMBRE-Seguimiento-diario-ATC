@@ -79,79 +79,75 @@ def escribir_res_mes(wb: Workbook, tabla: pd.DataFrame) -> None:
     ws.freeze_panes = "B3"
 
 
-# ---------------------------------------------------------------- VENCIDOS (1 al cierre / desde el día siguiente)
-def escribir_vencidos(wb: Workbook, indice: int, nombre: str, titulo: str, pivot: pd.DataFrame,
-                      lista: pd.DataFrame, p: Params) -> None:
-    """Hoja con (a) la tabla Fecha Pago x asesora de los pagos de ese rango de vencimiento y
-    (b) el detalle de esos pagos, uno por uno."""
-    ws = wb.create_sheet(nombre, indice)
-    ws["A1"] = titulo
-    ws["A1"].font = Font(name=F, bold=True, size=11)
-    ultima = _escribir_pivot(ws, pivot, fila0=3)
-
-    # fila con el número de cuotas por asesora
-    fila = ultima + 1
-    cuotas = lista.groupby("Coordinadora Cobranza").size()
-    ws.cell(fila, 1, "Numero de cuotas")
-    n_col = len(pivot.columns)
-    for j, nom in enumerate(pivot.columns[:-1], start=2):
-        n = int(cuotas.get(nom, 0))
-        ws.cell(fila, j, n if n else None)
-    ws.cell(fila, n_col + 1, int(len(lista)) if len(lista) else None)
-    for j in range(1, n_col + 2):
-        c = ws.cell(fila, j)
-        c.font = Font(name=F, size=10, bold=True)
-        c.border = BORDE
-        c.fill = _fill(AZUL_CLARO)
-        if j > 1:
-            c.number_format = "0"
-            c.alignment = Alignment(horizontal="right")
-
-    # detalle de los pagos
-    fila += 3
-    ws.cell(fila, 1, "Detalle de los pagos (uno por uno)").font = Font(name=F, bold=True, size=11)
-    fila += 1
-    cols = [("Fecha Pago", "Fecha Pago"), ("hoja", "Asesora")]
-    if "Código Matricula" in lista.columns:
-        cols.append(("Código Matricula", "Código Matricula"))
-    if "Nro Cuota" in lista.columns:
-        cols.append(("Nro Cuota", "Nro Cuota"))
-    cols += [("Fecha Vencimiento Actual", "Fecha Vencimiento"), ("per_key", "PERIODO"),
-             ("Real Pago Dolar", "Real Pago Dolar"), ("es_cierre", "Adelanto Cierre"), ("Fila en BASE", "Fila en BASE")]
-    hdr = fila
-    for j, (_, titulo_col) in enumerate(cols, start=1):
-        c = ws.cell(hdr, j, titulo_col)
+# ---------------------------------------------------------------- DETALLE ADELANTOS
+def escribir_detalle_adelantos(wb: Workbook, indice: int, tabla: pd.DataFrame, p: Params) -> None:
+    """Lista de TODOS los pagos (una fila por pago) con SI/NO en Adelanto, Adelanto Cierre,
+    Vencidos 1-5 y Vencidos 6 en adelante. Al final: nº de SI y monto de los SI por columna."""
+    ws = wb.create_sheet("DETALLE ADELANTOS", indice)
+    cols = list(tabla.columns)
+    flags = cols[-4:]                                   # Adelanto, Adelanto Cierre, Vencidos 1-5, Vencidos 6+
+    for j, nombre in enumerate(cols, start=1):
+        c = ws.cell(1, j, nombre)
         c.font = Font(name=F, bold=True, size=10, color="FFFFFF")
         c.fill = _fill(AZUL_OSC)
         c.border = BORDE
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    for i, (_, r) in enumerate(lista.iterrows(), start=hdr + 1):
-        for j, (campo, _) in enumerate(cols, start=1):
-            v = r[campo]
-            if campo == "per_key":
-                v = etiqueta_periodo(v)
-            elif campo == "es_cierre":
-                v = "SI" if v else "NO"
-            elif isinstance(v, pd.Timestamp):
+    ws.row_dimensions[1].height = 34
+
+    verde = _fill("E2EFDA")
+    for i, (_, r) in enumerate(tabla.iterrows(), start=2):
+        for j, nombre in enumerate(cols, start=1):
+            v = r[nombre]
+            if isinstance(v, pd.Timestamp):
                 v = v.to_pydatetime()
             elif pd.isna(v):
                 v = None
             c = ws.cell(i, j, v)
-            c.font = Font(name=F, size=10)
+            c.font = Font(name=F, size=10, bold=(v == "SI"))
             c.border = BORDE
-            if campo in ("Fecha Pago", "Fecha Vencimiento Actual"):
+            if nombre in ("Fecha Pago", "Fecha Vencimiento"):
                 c.number_format = "dd/mm/yyyy"
                 c.alignment = Alignment(horizontal="left")
-            elif campo == "Real Pago Dolar":
+            elif nombre == "Monto US$":
                 c.number_format = "0.00"
-    if len(lista):
-        ws.auto_filter.ref = f"A{hdr}:{get_column_letter(len(cols))}{hdr + len(lista)}"
-    else:
-        ws.cell(hdr + 1, 1, "(no hay pagos en este rango de vencimiento)").font = Font(name=F, italic=True, size=10)
+            elif nombre in flags:
+                c.alignment = Alignment(horizontal="center")
+                if v == "SI":
+                    c.fill = verde
+    ult = len(tabla) + 1
+    if len(tabla):
+        ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{ult}"
+
+    # totales: nº de SI y monto de los SI por columna
+    j_monto = cols.index("Monto US$") + 1
+    f1, f2 = ult + 1, ult + 2
+    ws.cell(f1, 1, "Total pagos / Nº de SI")
+    ws.cell(f2, 1, "Monto US$ de los SI")
+    ws.cell(f1, j_monto, round(float(tabla["Monto US$"].sum()), 2))
+    for nombre in flags:
+        j = cols.index(nombre) + 1
+        mask = tabla[nombre] == "SI"
+        ws.cell(f1, j, int(mask.sum()))
+        ws.cell(f2, j, round(float(tabla.loc[mask, "Monto US$"].sum()), 2))
+    for f in (f1, f2):
+        for j in range(1, len(cols) + 1):
+            c = ws.cell(f, j)
+            c.font = Font(name=F, size=10, bold=True)
+            c.fill = _fill(AZUL_CLARO)
+            c.border = BORDE
+            if j > 1:
+                c.alignment = Alignment(horizontal="center" if cols[j - 1] in flags else "right")
+        ws.cell(f, j_monto).number_format = "0.00"
+    for nombre in flags:
+        ws.cell(f2, cols.index(nombre) + 1).number_format = "0.00"
+    ws.cell(f2 + 2, 1, descripcion_ciclo(p)).font = Font(name=F, italic=True, size=9, color="7F7F7F")
+
+    anchos = {"Asesora": 14, "Código Matricula": 18, "Nro Cuota": 10, "Fecha Pago": 12, "Fecha Vencimiento": 14,
+              "Monto US$": 12}
+    for j, nombre in enumerate(cols, start=1):
+        ws.column_dimensions[get_column_letter(j)].width = anchos.get(nombre, 20)
     ws.column_dimensions["A"].width = 24
-    for j in range(2, max(n_col + 2, len(cols) + 1)):
-        ws.column_dimensions[get_column_letter(j)].width = 15
-    ws.freeze_panes = "B5"
+    ws.freeze_panes = "B2"
 
 
 # ---------------------------------------------------------------- hoja por asesora
