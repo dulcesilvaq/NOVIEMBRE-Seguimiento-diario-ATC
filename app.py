@@ -104,8 +104,8 @@ if st.button("▶ Generar reporte", type="primary", disabled=archivo is None):
         st.error("Agrega al menos una asesora.")
     elif len(set(hojas)) != len(hojas):
         st.error("Hay nombres de hoja repetidos. Cada asesora necesita un nombre de pestaña distinto.")
-    elif any(len(h) > 31 or any(ch in h for ch in '[]:*?/\\') or h.upper() in ("RES MES", "DETALLE", "RESUMEN ADELANTOS") for h in hojas):
-        st.error("Nombre de hoja no válido (máx. 31 caracteres, sin [ ] : * ? / \\, y distinto de 'RES MES', 'RESUMEN ADELANTOS' y 'DETALLE').")
+    elif any(len(h) > 31 or any(ch in h for ch in '[]:*?/\\') or h.upper() in ("RES MES", "DETALLE", "RESUMEN ADELANTOS", "DETALLE ADELANTOS") for h in hojas):
+        st.error("Nombre de hoja no válido (máx. 31 caracteres, sin [ ] : * ? / \\, y distinto de 'RES MES', 'RESUMEN ADELANTOS', 'DETALLE ADELANTOS' y 'DETALLE').")
     else:
         try:
             filas_periodos = [int(x) for x in filas_txt.replace(";", ",").split(",") if x.strip()]
@@ -158,7 +158,7 @@ if res:
                        mime="text/yaml", help="Úsalo para reemplazar config.yaml en GitHub si quieres que "
                        "estos valores queden como los iniciales de la app (el archivo sale sin comentarios).")
 
-    t1, t3, tv1, tv2, t2 = st.tabs(["RES MES", "Resumen adelantos", "Vencidos 1 al cierre", "Vencidos desde el día siguiente", "Vista por asesora"])
+    t1, t3, t4, t2 = st.tabs(["RES MES", "Resumen adelantos", "Detalle adelantos", "Vista por asesora"])
     with t1:
         v = r.res_mes.copy()
         v.index = [i.strftime("%d/%m/%Y") if isinstance(i, pd.Timestamp) else i for i in v.index]
@@ -167,12 +167,12 @@ if res:
         st.dataframe(r.resumen.style.format("{:.0f}"), width="stretch")
         st.caption("Montos en US$. Los 'Pagos vencidos' se clasifican solo por fecha de vencimiento; "
                    "las dos columnas de vencimiento suman el Adelanto mes natural.")
-    for tab, clave in ((tv1, "1-5"), (tv2, "6+")):
-        with tab:
-            v = r.vencidos[clave].copy()
-            v.index = [i.strftime("%d/%m/%Y") if isinstance(i, pd.Timestamp) else i for i in v.index]
-            st.dataframe(v.style.format("{:.0f}", na_rep=""), width="stretch")
-            st.caption("Pagos clasificados solo por su fecha de vencimiento. El detalle uno por uno está en la hoja del Excel.")
+    with t4:
+        st.dataframe(r.detalle_adelantos, width="stretch", hide_index=True,
+                     column_config={"Fecha Pago": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                    "Fecha Vencimiento": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                    "Monto US$": st.column_config.NumberColumn(format="%.2f")})
+        st.caption("Un pago por fila. SI/NO según su fecha de vencimiento y de pago; el Excel trae además los totales de SI.")
     with t2:
         hoja = st.selectbox("Asesora", list(r.vistas))
         for clave, titulo in (("monto", "Monto (suma de Real Pago Dolar) por PERIODO"),
