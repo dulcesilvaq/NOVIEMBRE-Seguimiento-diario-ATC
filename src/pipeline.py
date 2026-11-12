@@ -8,7 +8,7 @@ from openpyxl import Workbook
 
 from . import buckets, loader, tables
 from .excel_writer import (escribir_detalle, escribir_hoja_asesora, escribir_res_mes,
-                           escribir_resumen_adelantos, escribir_vencidos)
+                           escribir_detalle_adelantos, escribir_resumen_adelantos)
 
 
 def _ciclo_sugerido(df: pd.DataFrame) -> pd.Period:
@@ -50,7 +50,7 @@ class Resultado:
     # hoja -> {"monto": DataFrame, "cuotas": DataFrame} (tablas por PERIODO, columnas con su etiqueta)
     vistas: dict = field(default_factory=dict)
     resumen: pd.DataFrame | None = None     # resumen de adelantos por asesora (con fila Total)
-    vencidos: dict = field(default_factory=dict)   # {"1-5": pivot, "6+": pivot} (Fecha Pago x asesora)
+    detalle_adelantos: pd.DataFrame | None = None   # lista de pagos con SI/NO por tipo de adelanto
 
 
 def generar(entrada, cfg: dict, solo: list[str] | None = None) -> Resultado:
@@ -95,17 +95,11 @@ def generar(entrada, cfg: dict, solo: list[str] | None = None) -> Resultado:
     resumen = tables.resumen_adelantos(df, asesoras, p)
     escribir_resumen_adelantos(wb, resumen)
 
-    # hojas de pagos vencidos: del 1 al cierre y desde el día siguiente al cierre
-    n15, n6 = buckets.nombres_hojas_vencidos(p)
-    if {n15.lower(), n6.lower()} & {a["hoja"].lower() for a in asesoras}:
-        raise ValueError("El nombre de hoja de una asesora coincide con el de las hojas de vencidos; usa otro.")
-    t15, t6 = buckets.titulos_hojas_vencidos(p)
-    vencidos = {}
-    for clave, nombre, mascara, titulo, indice in (("1-5", n15, df["venc_1_al_cierre"], t15, 2),
-                                                   ("6+", n6, df["venc_desde_cierre"], t6, 3)):
-        piv = tables.res_mes(df[mascara], asesoras, dias_base)
-        escribir_vencidos(wb, indice, nombre, titulo, piv, tables.lista_pagos(df, asesoras, mascara), p)
-        vencidos[clave] = piv
+    # DETALLE ADELANTOS: una fila por pago con SI/NO (Adelanto, Adelanto Cierre, Vencidos 1-5, Vencidos 6 en adelante)
+    if "detalle adelantos" in {a["hoja"].lower() for a in asesoras}:
+        raise ValueError("El nombre de hoja de una asesora coincide con 'DETALLE ADELANTOS'; usa otro.")
+    detalle_ad = tables.detalle_adelantos(df, asesoras, p)
+    escribir_detalle_adelantos(wb, 2, detalle_ad, p)
 
     vistas = {}
     for a in asesoras:
@@ -127,4 +121,4 @@ def generar(entrada, cfg: dict, solo: list[str] | None = None) -> Resultado:
 
     escribir_detalle(wb, df, asesoras, cols, p)
 
-    return Resultado(wb, adv, p, res, dias_base, dias, len(df), vistas, resumen, vencidos)
+    return Resultado(wb, adv, p, res, dias_base, dias, len(df), vistas, resumen, detalle_ad)
