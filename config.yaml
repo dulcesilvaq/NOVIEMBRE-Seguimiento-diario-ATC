@@ -1,0 +1,67 @@
+# ============================================================
+#  CONFIGURACIÓN DEL REPORTE DE COBRANZA  (edita solo este archivo)
+# ============================================================
+
+# Hoja del Excel donde está la base (se prueba en este orden)
+hojas_base: ["BASE FINAL", "BASE"]
+
+# --- Parámetros del ciclo (lo que cambias cada mes) ------------------------
+# 1) MES ACTUAL (AAAA-MM). Define hasta qué mes se muestran columnas y desde
+#    cuándo empieza "Adelanto" (= día 1 del mes siguiente).
+#    Ej.: en noviembre -> "2026-11"
+mes_actual: "2026-11"
+
+# 2) FECHA DE CIERRE de ATC (AAAA-MM-DD o DD/MM/AAAA), ya en el mes siguiente.
+#    "Adelanto Cierre" incluye:
+#      - todo Adelanto que vence DESPUÉS de esta fecha (cierre 5 -> desde el 6), y
+#      - los que vencen del día 1 hasta esta fecha, pero SOLO si se pagaron en un mes
+#        anterior al del vencimiento (los pagados en el mismo mes NO entran).
+#    Edítala cuando cambie: "2026-11-05", "2026-12-05", "2026-12-07", etc.
+fecha_cierre: "2026-12-05"
+
+# 3) La Tabla 1 de cada asesora va del 01 del mes actual hasta este día del mes
+#    siguiente (9 -> 01/10 a 09/11). Solo es formato.
+tabla1_hasta_dia: 9
+
+# --- Agrupaciones ----------------------------------------------------------
+# Columnas por Fecha Vencimiento: "Anteriores" = todo lo anterior a este año
+# (2022 -> Anteriores = 2021 hacia atrás). Luego una columna por año hasta el
+# año previo al actual y una por mes del año actual.
+anio_inicio_columnas: 2022
+
+# Filas por PERIODO: todo PERIODO <= este valor se agrupa como "Anteriores"
+# (2019 agrupa 2018, 2019, 2020, 2021, etc.).
+periodo_anteriores: 2022
+
+# Filas FIJAS de las tablas por PERIODO (además de "Anteriores"). Siempre salen todas, aunque
+# la base no tenga pagos de alguno de esos años, para que puedas pegar siempre igual.
+# Todo PERIODO anterior al primer año de la lista se agrupa en "Anteriores".
+periodos_filas: [2023, 2024, 2025, 2026]
+
+# Texto del encabezado de la primera columna de las tablas
+etiqueta_tabla: "1ra cuota al 06/08 USD"
+
+# --- Asesoras ---------------------------------------------------------------
+# 4) ORDEN y NOMBRES: el orden de esta lista es el orden de las columnas en
+#    "RES MES" y de las pestañas. Mueve las líneas para reordenar.
+#    "nombre" debe ser IDÉNTICO a la columna "Coordinadora Cobranza" de la base
+#    (así sale como encabezado en RES MES). "hoja" es el nombre corto de la pestaña.
+#    Para agregar o quitar una asesora, agrega o borra su línea.
+asesoras:
+  - { nombre: "Babilonia Begazo, Bhia Alejandra",        hoja: "Bhia" }
+  - { nombre: "Cari Cruz, Ana Silvia",                   hoja: "Ana" }
+  - { nombre: "Farfan Paucar, Elizabeth Beatriz",        hoja: "Elizabeth" }
+  - { nombre: "Flores Benavente, Angela Patricia Faith", hoja: "Angela" }
+  - { nombre: "Licona Manrique, Yamile Yadhira",         hoja: "Yamile" }
+  - { nombre: "Rojas Neyra, Katherine Milagros",         hoja: "Katherin" }
+
+# --- Unir asesoras -----------------------------------------------------------
+# 5) Suma los pagos de una asesora a la cartera de otra (ej. una asesora se fue y su
+#    cartera pasó a otras). Formato:  "nombre_origen": "nombre_destino"
+#    Los nombres deben ser IDÉNTICOS a los de la base. El destino debe estar en la lista
+#    de asesoras (así conserva su hoja y su posición). Déjalo vacío si no aplica.
+fusionar: {}
+#   Ejemplo:
+#   fusionar:
+#     "Flores Benavente, Angela Patricia Faith": "Carita Cruz, Meryluz Wendy"
+#     "Vallejos Cordova, Marisol Diana": "Carita Cruz, Meryluz Wendy"
