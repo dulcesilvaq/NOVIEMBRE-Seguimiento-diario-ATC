@@ -6,6 +6,7 @@ import re
 import pandas as pd
 
 from .buckets import ADEL, ANT, CIERRE, TOTAL, Columna, Params, columnas, etiquetas_adelantos
+from .buckets import encabezados_detalle_adelantos as etiquetas_det
 
 VAL = "Real Pago Dolar"
 
@@ -48,9 +49,9 @@ def orden_asesoras(df: pd.DataFrame, cfg: dict, advertencias: list[str]) -> list
     hojas = [a["hoja"].lower() for a in todas]
     if len(set(hojas)) != len(hojas):
         raise ValueError("Hay nombres de hoja repetidos en la lista de asesoras.")
-    reservadas = {"res mes", "detalle", "resumen adelantos"}
+    reservadas = {"res mes", "detalle", "resumen adelantos", "detalle adelantos"}
     if reservadas & set(hojas):
-        raise ValueError("Los nombres de hoja 'RES MES', 'RESUMEN ADELANTOS' y 'DETALLE' están reservados; usa otro para la asesora.")
+        raise ValueError("Los nombres de hoja 'RES MES', 'RESUMEN ADELANTOS', 'DETALLE ADELANTOS' y 'DETALLE' están reservados; usa otro para la asesora.")
     usadas = set(hojas) | reservadas
 
     presentes = set(df["Coordinadora Cobranza"])
@@ -87,14 +88,30 @@ def res_mes(df: pd.DataFrame, asesoras: list[dict], dias=None) -> pd.DataFrame:
     return t
 
 
-def lista_pagos(df: pd.DataFrame, asesoras: list[dict], mascara) -> pd.DataFrame:
-    """Pagos (uno por fila) que cumplen `mascara`, ordenados por Fecha Pago y asesora."""
+def detalle_adelantos(df: pd.DataFrame, asesoras: list[dict], p: Params) -> pd.DataFrame:
+    """Una fila por PAGO, con SI/NO en: Adelanto, Adelanto Cierre, Vencidos 1-5 y Vencidos 6 en adelante.
+
+    Orden: asesora (como en la lista), pagos de adelanto primero, fecha de pago, vencimiento.
+    """
+    h15, h6 = etiquetas_det(p)
     orden = {a["nombre"]: i for i, a in enumerate(asesoras)}
     hoja_de = {a["nombre"]: a["hoja"] for a in asesoras}
-    d = df[mascara].copy()
-    d["hoja"] = d["Coordinadora Cobranza"].map(hoja_de)
-    d["_o"] = d["Coordinadora Cobranza"].map(orden)
-    return d.sort_values(["Fecha Pago", "_o", "Fecha Vencimiento Actual"], kind="stable").drop(columns="_o")
+    d = df.assign(_o=df["Coordinadora Cobranza"].map(orden), _a=~df["es_adelanto"])
+    d = d.sort_values(["_o", "_a", "Fecha Pago", "Fecha Vencimiento Actual"], kind="stable")
+    si_no = {True: "SI", False: "NO"}
+    out = pd.DataFrame({"Asesora": d["Coordinadora Cobranza"].map(hoja_de)})
+    if "Código Matricula" in d.columns:
+        out["Código Matricula"] = d["Código Matricula"]
+    if "Nro Cuota" in d.columns:
+        out["Nro Cuota"] = d["Nro Cuota"]
+    out["Fecha Pago"] = d["Fecha Pago"]
+    out["Fecha Vencimiento"] = d["Fecha Vencimiento Actual"]
+    out["Monto US$"] = d[VAL]
+    out["Adelanto"] = d["es_adelanto"].map(si_no)
+    out["Adelanto Cierre"] = d["es_cierre"].map(si_no)
+    out[h15] = d["venc_1_al_cierre"].map(si_no)
+    out[h6] = d["venc_desde_cierre"].map(si_no)
+    return out.reset_index(drop=True)
 
 
 def matriz(df: pd.DataFrame, fila_col: str, filas: list, cols: list[Columna], agg: str) -> pd.DataFrame:
